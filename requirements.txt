@@ -1,0 +1,24 @@
+# Core agent framework
+langgraph>=0.2.50,<0.3.0
+langchain-core>=0.3.20,<0.4.0
+langchain-groq>=0.2.0,<0.3.0
+groq>=0.13.0,<1.0.0
+
+# Data and storage
+duckdb>=1.1.0,<2.0.0
+chromadb>=0.5.15,<0.6.0
+pydantic>=2.9.0,<3.0.0
+
+# Visualization and UI
+plotly>=5.24.0,<6.0.0
+streamlit>=1.40.0,<2.0.0
+
+# Utilities
+python-dotenv>=1.0.0,<2.0.0
+pandas>=2.2.0,<3.0.0
+
+# Data acquisition
+kaggle>=1.6.17,<2.0.0
+
+# Development
+ipykernel>=6.29.0,<7.0.0

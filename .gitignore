@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Environment
+.env
+.env.local
+
+# Data (raw CSVs and processed DB are large, do not commit)
+data/raw/*.csv
+data/raw/*.zip
+data/processed/*.duckdb
+data/processed/*.db
+
+# ChromaDB persistence
+data/chroma/
+
+# Traces (generated per investigation)
+traces/*.json
+!traces/.gitkeep
+
+# Evaluation results
+evals/results/*.json
+evals/results/*.md
+!evals/results/.gitkeep
+
+# Streamlit
+.streamlit/secrets.toml
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
