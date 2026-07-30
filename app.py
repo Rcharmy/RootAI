@@ -12,11 +12,11 @@ Behavior:
     2. Invokes the compiled LangGraph.
     3. Prints the final ExecutiveBrief.
     4. Dumps the full state (including action_log) to traces/inv_<id>.json.
-
-In Phase 2 every node is a stub; the run produces a placeholder brief but
-proves the graph plumbing works end-to-end.
 """
 from __future__ import annotations
+
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="langgraph")
 
 import json
 import sys
@@ -30,12 +30,7 @@ from rootai.tools.dataset_context import build_dataset_context
 
 
 def _serialize_state(state: dict) -> dict:
-    """
-    Convert a LangGraph state dict into JSON-safe form.
-
-    LangGraph returns state as a dict of field name -> value. Pydantic models
-    inside need model_dump(), datetimes need isoformat().
-    """
+    """Convert a LangGraph state dict into JSON-safe form."""
     def convert(x):
         if hasattr(x, "model_dump"):
             return x.model_dump(mode="json")
@@ -51,9 +46,7 @@ def _serialize_state(state: dict) -> dict:
 
 
 def run_investigation(question: str) -> dict:
-    """
-    Run a single investigation end-to-end. Returns the final state dict.
-    """
+    """Run a single investigation end-to-end. Returns the final state dict."""
     print("=" * 70)
     print(f"RootAI investigation")
     print(f"Question: {question}")
@@ -72,8 +65,6 @@ def run_investigation(question: str) -> dict:
           f"{len(dataset.dimensions)} dims / {len(dataset.metrics)} metrics")
     print("-" * 70)
 
-    # LangGraph accepts either a state model or its dict form as input.
-    # We pass model_dump() so the reducers see plain-Python values.
     final_state = compiled_graph.invoke(initial_state.model_dump())
 
     print("-" * 70)
@@ -86,7 +77,6 @@ def run_investigation(question: str) -> dict:
     if brief is None:
         print("No final brief produced.")
     else:
-        # brief may already be a dict (from serialization) or a Pydantic model
         if hasattr(brief, "model_dump"):
             brief = brief.model_dump()
         print("TL;DR:")
@@ -102,7 +92,6 @@ def run_investigation(question: str) -> dict:
             for c in brief["caveats"]:
                 print(f"  - {c}")
 
-    # Dump trace
     trace_dir = Path(config.traces_dir)
     trace_dir.mkdir(parents=True, exist_ok=True)
     inv_id = final_state.get("investigation_id", "unknown")
@@ -117,7 +106,6 @@ def run_investigation(question: str) -> dict:
 
 def main() -> None:
     if len(sys.argv) < 2:
-        # Default question so `python app.py` still works for a smoke test
         question = "Revenue dropped 12% in Q2 2018 vs Q2 2017, why?"
         print(f"(no question provided, using default)")
     else:
