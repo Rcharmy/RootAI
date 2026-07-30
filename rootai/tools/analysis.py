@@ -41,34 +41,46 @@ def contribution_analysis(
     """
     Decompose the change from baseline to comparison into per-dimension
     contributions. Returns the top-K contributors (positive and negative).
-
-    Requires df to have at least dimension_col, baseline_col, comparison_col.
     """
     tool = "contribution_analysis"
     try:
+        # Guard: required columns must exist
         for col in (dimension_col, baseline_col, comparison_col):
             if col not in df.columns:
                 return AnalysisResult(
                     tool_name=tool,
                     summary=f"missing column: {col}",
-                    error=f"df must contain column {col}",
+                    error=f"df must contain column {col}, has: {list(df.columns)}",
                 )
 
-        work = df[[dimension_col, baseline_col, comparison_col]].copy()
+        # Reset index so integer positional and label-based indexing align
+        work = df[[dimension_col, baseline_col, comparison_col]].reset_index(drop=True).copy()
         work[baseline_col] = pd.to_numeric(work[baseline_col], errors="coerce").fillna(0)
         work[comparison_col] = pd.to_numeric(work[comparison_col], errors="coerce").fillna(0)
         work["delta"] = work[comparison_col] - work[baseline_col]
+
+        # Guard: DataFrame not empty
+        if len(work) == 0:
+            return AnalysisResult(
+                tool_name=tool,
+                summary="empty DataFrame after column selection",
+                error="no rows to analyze",
+            )
 
         total_baseline = float(work[baseline_col].sum())
         total_comparison = float(work[comparison_col].sum())
         total_delta = total_comparison - total_baseline
         pct_change = (total_delta / total_baseline * 100.0) if total_baseline else None
 
-        work_sorted = work.sort_values("delta", key=lambda s: s.abs(), ascending=False)
-        top = work_sorted.head(top_k)
+        # Sort by absolute delta, take top-k (or all if fewer than k)
+        actual_k = min(top_k, len(work))
+        work_sorted = work.sort_values(
+            "delta", key=lambda s: s.abs(), ascending=False
+        ).reset_index(drop=True).head(actual_k)
 
         contributors = []
-        for _, row in top.iterrows():
+        for idx in range(len(work_sorted)):
+            row = work_sorted.iloc[idx]
             share = (row["delta"] / total_delta * 100.0) if total_delta else None
             contributors.append({
                 "dimension_value": str(row[dimension_col]),
@@ -78,14 +90,13 @@ def contribution_analysis(
                 "share_of_total_delta_pct": (round(share, 1) if share is not None else None),
             })
 
-        # Concentration signal: how much of the total delta is explained by top-K
-        top_delta_sum = float(top["delta"].sum())
+        top_delta_sum = float(work_sorted["delta"].sum())
         concentration = (top_delta_sum / total_delta * 100.0) if total_delta else None
 
         summary_lines = [
             f"total baseline={total_baseline:,.0f}, comparison={total_comparison:,.0f}, delta={total_delta:+,.0f}"
             + (f" ({pct_change:+.1f}%)" if pct_change is not None else ""),
-            f"top {top_k} dimension values explain "
+            f"top {actual_k} dimension values explain "
             + (f"{concentration:.0f}%" if concentration is not None else "?%")
             + " of the total delta",
         ]
@@ -124,16 +135,26 @@ def top_k_by_dimension(
                 return AnalysisResult(
                     tool_name=tool,
                     summary=f"missing column: {col}",
-                    error=f"df must contain column {col}",
+                    error=f"df must contain column {col}, has: {list(df.columns)}",
                 )
 
-        work = df[[dimension_col, metric_col]].copy()
+        work = df[[dimension_col, metric_col]].reset_index(drop=True).copy()
         work[metric_col] = pd.to_numeric(work[metric_col], errors="coerce").fillna(0)
+
+        if len(work) == 0:
+            return AnalysisResult(
+                tool_name=tool,
+                summary="empty DataFrame after column selection",
+                error="no rows to analyze",
+            )
+
         total = float(work[metric_col].sum())
-        work_sorted = work.sort_values(metric_col, ascending=False).head(top_k)
+        actual_k = min(top_k, len(work))
+        work_sorted = work.sort_values(metric_col, ascending=False).reset_index(drop=True).head(actual_k)
 
         rows = []
-        for _, row in work_sorted.iterrows():
+        for idx in range(len(work_sorted)):
+            row = work_sorted.iloc[idx]
             share = (row[metric_col] / total * 100.0) if total else None
             rows.append({
                 "dimension_value": str(row[dimension_col]),
@@ -145,7 +166,7 @@ def top_k_by_dimension(
 
         return AnalysisResult(
             tool_name=tool,
-            summary=f"top {top_k} of {dimension_col} account for "
+            summary=f"top {actual_k} of {dimension_col} account for "
                     + (f"{top_share:.0f}%" if top_share is not None else "?%")
                     + f" of total {metric_col} ({total:,.0f})",
             findings={
@@ -176,22 +197,29 @@ def pct_change_summary(
                 return AnalysisResult(
                     tool_name=tool,
                     summary=f"missing column: {col}",
-                    error=f"df must contain column {col}",
+                    error=f"df must contain column {col}, has: {list(df.columns)}",
                 )
 
-        work = df[[dimension_col, baseline_col, comparison_col]].copy()
+        work = df[[dimension_col, baseline_col, comparison_col]].reset_index(drop=True).copy()
         work[baseline_col] = pd.to_numeric(work[baseline_col], errors="coerce").fillna(0)
         work[comparison_col] = pd.to_numeric(work[comparison_col], errors="coerce").fillna(0)
-        # Avoid divide-by-zero: only compute pct where baseline > 0
+
+        if len(work) == 0:
+            return AnalysisResult(
+                tool_name=tool,
+                summary="empty DataFrame after column selection",
+                error="no rows to analyze",
+            )
+
         work["pct_change"] = ((work[comparison_col] - work[baseline_col]) / work[baseline_col].replace(0, pd.NA)) * 100.0
 
-        # Sort by absolute pct change, ignoring NaN
         work_sorted = work.dropna(subset=["pct_change"]).sort_values(
             "pct_change", key=lambda s: s.abs(), ascending=False
-        ).head(10)
+        ).reset_index(drop=True).head(10)
 
         rows = []
-        for _, row in work_sorted.iterrows():
+        for idx in range(len(work_sorted)):
+            row = work_sorted.iloc[idx]
             rows.append({
                 "dimension_value": str(row[dimension_col]),
                 "baseline": float(row[baseline_col]),

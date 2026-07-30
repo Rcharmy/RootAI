@@ -10,11 +10,14 @@ Design:
 - The last SQL query must have executed successfully (passed_guardrails,
   no error, row_count > 0). If not, this node emits an evidence-free
   no-op analysis and lets the Router decide what to do next.
-- The chosen tool runs against the DataFrame we re-fetch from the SQL
-  Explorer's stored query. Yes, re-executing the same SQL is wasteful.
-  Phase 5+ optimization if we care.
+- When the chosen tool errors, we OVERWRITE result_summary with an
+  explicit ERROR marker so the downstream Hypothesis Former sees the
+  failure clearly and does not reason from an absent analysis.
+- Re-executing the SQL to get the DataFrame is wasteful. Phase 5+ opt.
 """
 from __future__ import annotations
+
+import json
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -80,7 +83,7 @@ def _no_op(state: InvestigationState, step: int, reason: str) -> dict:
         tool_name="skipped",
         tool_args={},
         rationale=f"skipped: {reason}",
-        result_summary=None,
+        result_summary=f"SKIPPED: {reason}",
         error=reason,
     )
     log_entry = ActionLogEntry(
@@ -103,7 +106,6 @@ def python_analyst_node(state: InvestigationState) -> dict:
     step = state.current_step + 1
     print(f"python_analyst: choosing tool (step {step})")
 
-    # Precondition: we need a successful, non-empty SQL result
     if not state.sql_queries:
         return _no_op(state, step, "no SQL query has been executed yet")
 
@@ -111,7 +113,6 @@ def python_analyst_node(state: InvestigationState) -> dict:
     if last_sql.error or last_sql.row_count == 0 or not last_sql.passed_guardrails:
         return _no_op(state, step, f"last SQL unusable: error={last_sql.error}, rows={last_sql.row_count}, passed={last_sql.passed_guardrails}")
 
-    # Re-execute to get the DataFrame (state doesn't carry DFs; they aren't JSON-serializable)
     df, _ = run_query(last_sql.query)
     if df.empty:
         return _no_op(state, step, "re-executed SQL returned empty DataFrame")
@@ -146,13 +147,13 @@ def python_analyst_node(state: InvestigationState) -> dict:
     try:
         result = tool_fn(df=df, **choice.tool_args)
     except TypeError as e:
-        # Bad args for the tool
         print(f"  tool arg mismatch: {e}")
         analysis = PythonAnalysis(
             step=step,
             tool_name=choice.tool_name,
             tool_args=choice.tool_args,
             rationale=choice.rationale,
+            result_summary=f"ERROR (do not reason from this analysis): arg mismatch: {e}",
             error=f"arg mismatch: {e}",
         )
         log_entry = ActionLogEntry(
@@ -180,25 +181,26 @@ def python_analyst_node(state: InvestigationState) -> dict:
         error=result.error,
     )
 
+    # If the tool errored, overwrite result_summary with an explicit
+    # ERROR marker so the downstream Hypothesis Former does not reason
+    # from an absent analysis.
+    if result.error:
+        analysis = analysis.model_copy(update={
+            "result_summary": f"ERROR (do not reason from this analysis): {result.error}"
+        })
+    elif result.findings:
+        # Append compact findings JSON so downstream LLMs can see specific numbers
+        analysis = analysis.model_copy(update={
+            "result_summary": (analysis.result_summary or "") + "\n\nFindings:\n" + json.dumps(result.findings, indent=2, default=str)[:1500]
+        })
+
     log_entry = ActionLogEntry(
         step=step,
         node=NodeName.PYTHON_ANALYST,
         action="analysis_run",
         input_summary=f"{choice.tool_name}({choice.tool_args})",
-        output_summary=result.summary[:120] if result.summary else "(no summary)",
+        output_summary=(result.error[:120] if result.error else (result.summary[:120] if result.summary else "(no summary)")),
     )
-
-    # We also stash the compact findings dict on the analysis so downstream
-    # nodes (Hypothesis Former, Writer) can reason about specific numbers.
-    # Pydantic PythonAnalysis has a dict-shaped result field via result_summary;
-    # for structured findings we JSON-serialize them into the same field.
-    # Cleaner: extend PythonAnalysis with a findings dict. Doing that inline.
-    if result.findings:
-        # Append compact findings JSON to result_summary so the LLM downstream can see them
-        import json
-        analysis = analysis.model_copy(update={
-            "result_summary": (analysis.result_summary or "") + "\n\nFindings:\n" + json.dumps(result.findings, indent=2, default=str)[:1500]
-        })
 
     return {
         "python_analyses": [analysis],
