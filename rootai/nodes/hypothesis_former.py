@@ -88,12 +88,13 @@ USER_TEMPLATE = (
     "Investigation question: {question}\n"
     "Structured question: kpi={kpi}, direction={direction}, magnitude={magnitude}, windows: comp={comp}, base={base}\n"
     "Plan: {plan}\n\n"
+    "Similar prior investigations ({n_prior}):\n{prior_summary}\n\n"
     "Recent SQL queries (last 2 of {n_sql}):\n{sql_summary}\n\n"
     "Recent Python analyses (last 2 of {n_pa}):\n{pa_summary}\n\n"
     "Existing hypotheses ({n_hyp}):\n{hyp_summary}\n\n"
     "Recent evidence (last 3 of {n_evi}):\n{evi_summary}\n\n"
     "Dead ends: {dead_ends}\n\n"
-    "Produce your hypotheses (new and/or updates), evidence linking them to findings, and a brief reasoning summary."
+    "Produce your hypotheses (new and/or updates), evidence linking them to findings, and a brief reasoning summary. If a prior investigation's top cause is highly relevant to the current findings, propose a hypothesis that either supports or refutes it."
 )
 
 
@@ -141,6 +142,15 @@ def _summarize_evidence(state: InvestigationState) -> str:
         lines.append(f"- {e.id} (supports=[{supp}], refutes=[{ref}]): {e.finding[:200]}")
     return "\n".join(lines)
 
+def _summarize_priors(state: InvestigationState) -> str:
+    if not state.similar_prior_investigations:
+        return "(none)"
+    lines = []
+    for p in state.similar_prior_investigations[:3]:
+        conf_str = f", prior_conf={p.verdict_confidence:.2f}" if p.verdict_confidence is not None else ""
+        causes = "; ".join(p.key_causes[:1]) if p.key_causes else "(no causes)"
+        lines.append(f"- sim={p.similarity_score:.2f}{conf_str}: {p.question[:100]} -> {causes[:200]}")
+    return "\n".join(lines)
 
 _STATUS_MAP = {
     "proposed": HypothesisStatus.PROPOSED,
@@ -174,6 +184,8 @@ def hypothesis_former_node(state: InvestigationState) -> dict:
         hyp_summary=_summarize_hypotheses(state),
         n_evi=len(state.evidence),
         evi_summary=_summarize_evidence(state),
+        n_prior=len(state.similar_prior_investigations),
+        prior_summary=_summarize_priors(state),
         dead_ends=", ".join(state.dead_ends) if state.dead_ends else "(none)",
     )
 

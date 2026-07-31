@@ -2,17 +2,28 @@
 rootai/nodes/planner.py
 
 Planner node. First node in every investigation.
+
+Responsibilities:
+1. Query ChromaDB for semantically similar past investigations (Phase 5).
+   Loaded into state.similar_prior_investigations for downstream nodes.
+2. Parse the user's raw question into a structured KPIQuestion (LLM
+   structured output). If truly ambiguous, set needs_clarification=True
+   and the graph routes directly to Writer.
+3. Produce a 2-4 sentence investigation plan grounded in the DatasetContext
+   dimensions AND informed by prior investigations if any are returned.
 """
 from __future__ import annotations
 
 from pydantic import BaseModel, Field, ValidationError
 
+from rootai.memory.store import query_similar
 from rootai.state import (
     ActionLogEntry,
     InvestigationState,
     InvestigationStatus,
     KPIQuestion,
     NodeName,
+    PriorInvestigation,
 )
 from rootai.tools.llm import get_structured_llm
 
@@ -36,7 +47,8 @@ SYSTEM_PROMPT = (
     "You are the Planner for RootAI, an autonomous analytics agent that investigates why business KPIs moved.\n\n"
     "Your job on step 0:\n"
     "1. Parse the user's question into a structured KPIQuestion.\n"
-    "2. Produce a 2-4 sentence plan naming dimensions from the dataset context you will slice first.\n\n"
+    "2. Produce a 2-4 sentence plan naming dimensions from the dataset context you will slice first.\n"
+    "3. If prior similar investigations are provided, USE them: mention their top causes as candidate hypotheses to test or refute, and consider whether their conclusions might apply.\n\n"
     "Rules:\n"
     "- Only use dimensions that appear in the provided dataset context. Do not invent column names.\n"
     "- If the question does not specify a time window, INFER a sensible one. Only set needs_clarification=true if truly ambiguous.\n"
@@ -53,9 +65,21 @@ USER_TEMPLATE = (
     "- Metrics available: {metrics}\n"
     "- Time column: {time_column}\n"
     "- Notes: {notes}\n\n"
+    "Similar prior investigations ({n_prior}):\n{prior_summary}\n\n"
     "User question: {question}\n\n"
-    "Parse the question and produce your plan."
+    "Parse the question and produce your plan. If a prior investigation is highly relevant, mention its top cause in your plan as a candidate to test."
 )
+
+
+def _summarize_priors(priors: list[PriorInvestigation]) -> str:
+    if not priors:
+        return "(none - this appears to be a novel question)"
+    lines = []
+    for p in priors:
+        conf_str = f", prior_confidence={p.verdict_confidence:.2f}" if p.verdict_confidence is not None else ""
+        causes = "; ".join(p.key_causes[:2]) if p.key_causes else "(no causes recorded)"
+        lines.append(f"- similarity={p.similarity_score:.2f}{conf_str}: '{p.question}' -> {causes}")
+    return "\n".join(lines)
 
 
 def _fallback_output(question: str, error_msg: str) -> PlannerOutput:
@@ -74,8 +98,16 @@ def _fallback_output(question: str, error_msg: str) -> PlannerOutput:
 
 
 def planner_node(state: InvestigationState) -> dict:
-    """Real Planner: LLM structured output, grounded in DatasetContext."""
+    """Real Planner: LLM structured output, grounded in DatasetContext + prior investigations."""
     print(f"planner: parsing question and planning investigation (step {state.current_step + 1})")
+
+    # Phase 5: query memory for semantically similar prior investigations
+    priors = query_similar(state.original_question, n_results=3, min_similarity=0.35)
+    if priors:
+        print(f"  memory: retrieved {len(priors)} prior investigation(s): "
+              + ", ".join(f"{p.id}(sim={p.similarity_score:.2f})" for p in priors))
+    else:
+        print("  memory: no similar prior investigations")
 
     user_msg = USER_TEMPLATE.format(
         dataset_name=state.dataset.name,
@@ -84,6 +116,8 @@ def planner_node(state: InvestigationState) -> dict:
         metrics=", ".join(state.dataset.metrics),
         time_column=state.dataset.time_column,
         notes=state.dataset.notes or "(none)",
+        n_prior=len(priors),
+        prior_summary=_summarize_priors(priors),
         question=state.original_question,
     )
 
@@ -113,7 +147,10 @@ def planner_node(state: InvestigationState) -> dict:
         node=NodeName.PLANNER,
         action="parse_and_plan",
         input_summary=state.original_question[:120],
-        output_summary=f"{output.kpi_name} {output.direction} {output.magnitude_pct}%; plan: {output.plan[:80]}",
+        output_summary=(
+            f"{output.kpi_name} {output.direction} {output.magnitude_pct}%; "
+            f"{len(priors)} prior; plan: {output.plan[:80]}"
+        ),
     )
 
     new_status = (
@@ -128,6 +165,7 @@ def planner_node(state: InvestigationState) -> dict:
         "plan": output.plan,
         "needs_clarification": output.needs_clarification,
         "clarification_question": output.clarification_question,
+        "similar_prior_investigations": priors,
         "current_step": state.current_step + 1,
         "current_node": NodeName.PLANNER,
         "action_log": [log_entry],
