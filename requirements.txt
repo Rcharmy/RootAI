@@ -6,7 +6,7 @@ groq>=0.13.0,<1.0.0
 
 # Data and storage
 duckdb>=1.1.0,<2.0.0
-chromadb>=0.5.15,<0.6.0
+chromadb==0.5.20
 pydantic>=2.9.0,<3.0.0
 
 # Visualization and UI
