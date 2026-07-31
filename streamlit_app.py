@@ -9,6 +9,10 @@ from __future__ import annotations
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="langgraph")
 
+# Ensure DuckDB is built on Streamlit Cloud first-load. Local runs no-op.
+from data.build_on_startup import ensure_data_ready
+ensure_data_ready()
+
 from typing import Any, Optional
 
 import streamlit as st
