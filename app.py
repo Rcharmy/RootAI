@@ -9,7 +9,9 @@ Usage:
 Behavior:
     1. Builds an initial InvestigationState with the user's question and
        a live DatasetContext introspected from the DuckDB.
-    2. Invokes the compiled LangGraph.
+    2. Invokes the compiled LangGraph with a recursion limit that gives
+       the BudgetTracker guardrail room to trigger before LangGraph itself
+       aborts.
     3. Prints the final ExecutiveBrief.
     4. Dumps the full state (including action_log) to traces/inv_<id>.json.
 """
@@ -65,7 +67,15 @@ def run_investigation(question: str) -> dict:
           f"{len(dataset.dimensions)} dims / {len(dataset.metrics)} metrics")
     print("-" * 70)
 
-    final_state = compiled_graph.invoke(initial_state.model_dump())
+    # recursion_limit=30 gives the BudgetTracker (max_steps=15) room to
+    # trigger cleanly. LangGraph counts each node execution as one step,
+    # but a single "investigation hop" is ~4 nodes (explorer, analyst,
+    # former, router), so 15 hops ~= 60 recursions in theory. We rely
+    # on the Router's budget check to fire well before that.
+    final_state = compiled_graph.invoke(
+        initial_state.model_dump(),
+        config={"recursion_limit": 30},
+    )
 
     print("-" * 70)
     print("Investigation complete.")

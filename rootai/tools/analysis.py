@@ -75,7 +75,9 @@ def contribution_analysis(
         # Sort by absolute delta, take top-k (or all if fewer than k)
         actual_k = min(top_k, len(work))
         work_sorted = work.sort_values(
-            "delta", key=lambda s: s.abs(), ascending=False
+            "delta",
+            key=lambda s: pd.to_numeric(s, errors="coerce").abs().fillna(0),
+            ascending=False,
         ).reset_index(drop=True).head(actual_k)
 
         contributors = []

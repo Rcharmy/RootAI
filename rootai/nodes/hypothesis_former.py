@@ -17,6 +17,10 @@ Design:
 - Prompt requires numeric support for confidence changes: if the LLM
   wants to move a hypothesis's confidence, it must cite a specific
   finding number.
+- Summaries are aggressively truncated to control token cost on Groq
+  free tier (100k tokens per day). Only the last 2 SQL queries and 3
+  evidence records go into the prompt; earlier context is compressed
+  into count summaries.
 """
 from __future__ import annotations
 
@@ -85,10 +89,10 @@ USER_TEMPLATE = (
     "Investigation question: {question}\n"
     "Structured question: kpi={kpi}, direction={direction}, magnitude={magnitude}, windows: comp={comp}, base={base}\n"
     "Plan: {plan}\n\n"
-    "SQL queries this investigation ({n_sql}):\n{sql_summary}\n\n"
-    "Python analyses this investigation ({n_pa}):\n{pa_summary}\n\n"
+    "Recent SQL queries (last 2 of {n_sql}):\n{sql_summary}\n\n"
+    "Recent Python analyses (last 2 of {n_pa}):\n{pa_summary}\n\n"
     "Existing hypotheses ({n_hyp}):\n{hyp_summary}\n\n"
-    "Existing evidence ({n_evi}):\n{evi_summary}\n\n"
+    "Recent evidence (last 3 of {n_evi}):\n{evi_summary}\n\n"
     "Dead ends: {dead_ends}\n\n"
     "Produce your hypotheses (new and/or updates), evidence linking them to findings, and a brief reasoning summary."
 )
@@ -98,11 +102,11 @@ def _summarize_sql(state: InvestigationState) -> str:
     if not state.sql_queries:
         return "(none)"
     lines = []
-    for q in state.sql_queries[-4:]:
+    for q in state.sql_queries[-2:]:
         status = "ERROR" if q.error else f"{q.row_count} rows"
         lines.append(f"- [{status}] rationale: {q.rationale[:150]}")
         if q.result_preview and not q.error:
-            preview_lines = q.result_preview.split("\n")[:6]
+            preview_lines = q.result_preview.split("\n")[:4]
             lines.append("  preview: " + " | ".join(preview_lines))
     return "\n".join(lines)
 
@@ -111,9 +115,9 @@ def _summarize_analyses(state: InvestigationState) -> str:
     if not state.python_analyses:
         return "(none)"
     lines = []
-    for a in state.python_analyses[-4:]:
+    for a in state.python_analyses[-2:]:
         marker = "ERROR" if a.error else "OK"
-        lines.append(f"- [{marker}] {a.tool_name}: {(a.result_summary or a.error or '(no summary)')[:600]}")
+        lines.append(f"- [{marker}] {a.tool_name}: {(a.result_summary or a.error or '(no summary)')[:500]}")
     return "\n".join(lines)
 
 
@@ -132,7 +136,7 @@ def _summarize_evidence(state: InvestigationState) -> str:
     if not state.evidence:
         return "(none yet)"
     lines = []
-    for e in state.evidence[-6:]:
+    for e in state.evidence[-3:]:
         supp = ",".join(e.supports_hypothesis_ids) or "-"
         ref = ",".join(e.refutes_hypothesis_ids) or "-"
         lines.append(f"- {e.id} (supports=[{supp}], refutes=[{ref}]): {e.finding[:200]}")
@@ -197,10 +201,8 @@ def hypothesis_former_node(state: InvestigationState) -> dict:
             "errors": [f"hypothesis_former: {e}"],
         }
 
-    # Build the id-remap for new hypotheses: LLM emits 'new', we assign a real id.
-    # The evidence drafts may reference these; we resolve after all hypotheses are minted.
     existing_ids = {h.id for h in state.hypotheses}
-    new_id_map: dict[int, str] = {}  # index in output.hypotheses -> minted id
+    new_id_map: dict[int, str] = {}
     processed_hypotheses: list[Hypothesis] = []
 
     for i, draft in enumerate(output.hypotheses):
@@ -208,7 +210,6 @@ def hypothesis_former_node(state: InvestigationState) -> dict:
         status = _STATUS_MAP.get(status_str, HypothesisStatus.PROPOSED)
 
         if draft.id in existing_ids:
-            # Update path: find the original to preserve created_at_step
             original = next(h for h in state.hypotheses if h.id == draft.id)
             hyp = Hypothesis(
                 id=draft.id,
@@ -223,7 +224,6 @@ def hypothesis_former_node(state: InvestigationState) -> dict:
                 updated_at_step=step,
             )
         else:
-            # New: mint an id
             new_id = f"h_{uuid4().hex[:8]}"
             new_id_map[i] = new_id
             hyp = Hypothesis(
@@ -239,10 +239,6 @@ def hypothesis_former_node(state: InvestigationState) -> dict:
 
         processed_hypotheses.append(hyp)
 
-    # Build evidence, remapping 'new' or index-style references to minted ids.
-    # LLM might emit new hypothesis ids as 'new', 'new-1', 'h_0', or the position.
-    # We handle two common patterns: exact 'new' matches the first new hypothesis,
-    # numeric strings map to positions in output.hypotheses.
     def resolve_ids(id_list: list[str]) -> list[str]:
         resolved: list[str] = []
         first_new_id = next(iter(new_id_map.values()), None)
@@ -259,9 +255,7 @@ def hypothesis_former_node(state: InvestigationState) -> dict:
                 elif 0 <= idx < len(processed_hypotheses):
                     resolved.append(processed_hypotheses[idx].id)
             elif x in {h.id for h in processed_hypotheses}:
-                # Already a minted or existing hypothesis id
                 resolved.append(x)
-            # Silently drop unresolvable ids; better than crashing the investigation
         return resolved
 
     processed_evidence: list[Evidence] = []
@@ -277,7 +271,6 @@ def hypothesis_former_node(state: InvestigationState) -> dict:
         )
         processed_evidence.append(ev)
 
-    # Attach evidence back-references onto hypotheses (supporting_evidence_ids)
     hyp_by_id = {h.id: h for h in processed_hypotheses}
     for ev in processed_evidence:
         for hid in ev.supports_hypothesis_ids:

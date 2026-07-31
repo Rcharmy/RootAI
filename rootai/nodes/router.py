@@ -13,9 +13,10 @@ Design:
   cost API budget to enforce."
 - LLM sees a compact state summary, not raw data. Cost per Router call
   should be under 500 tokens in / 100 out.
-- The Router increments budget.steps_used to represent that a routing
-  decision was made, even though the "step" concept is fuzzy. This is
-  what triggers eventual auto-abort even if the LLM keeps saying CONTINUE.
+- On LLM failure, default to CONCLUDE (not CONTINUE). Continuing loops
+  more failed LLM calls against a rate-limited API, burning quota trying
+  to fail. Concluding lets the Writer synthesize whatever state has been
+  gathered.
 """
 from __future__ import annotations
 
@@ -140,12 +141,12 @@ def router_node(state: InvestigationState) -> dict:
             {"role": "user", "content": user_msg},
         ])
         decision_str = output.decision.strip().lower()
-        decision = _DECISION_MAP.get(decision_str, RouterDecision.CONTINUE)
+        decision = _DECISION_MAP.get(decision_str, RouterDecision.CONCLUDE)
         rationale = output.rationale
     except (ValidationError, Exception) as e:
-        print(f"  router LLM call failed: {e}. Defaulting to CONTINUE.")
-        decision = RouterDecision.CONTINUE
-        rationale = f"LLM failed ({str(e)[:80]}), defaulting to CONTINUE"
+        print(f"  router LLM call failed: {e}. Defaulting to CONCLUDE (safer than looping).")
+        decision = RouterDecision.CONCLUDE
+        rationale = f"LLM failed ({str(e)[:80]}), defaulting to CONCLUDE to exit gracefully"
 
     print(f"  {decision.value}: {rationale[:120]}")
 
