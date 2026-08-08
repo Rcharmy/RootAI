@@ -25,7 +25,7 @@ The entire investigation is a state machine with six LLM-backed nodes and four g
 ## Live demo
 
 **Local:** `streamlit run streamlit_app.py` (setup instructions below)
-
+**Demo:** See screenshots below. To try it yourself, [clone the repo and run locally](#run-locally); the full setup takes about 10 minutes.
 **Screenshots:**
 
 ![RootAI homepage](docs/screenshots/01_home.png)
@@ -40,11 +40,9 @@ The entire investigation is a state machine with six LLM-backed nodes and four g
 
 *Ranked causes with color-coded confidence bars, executive summary, and retrieved prior investigations from ChromaDB. Investigation ran in 10 steps at $0.0054 total cost.*
 
-**Cloud deployment:** In progress. Streamlit Community Cloud's Python 3.14 default creates a PyO3/tokenizers build failure that is upstream from this project. Will migrate to Hugging Face Spaces or Snowflake's Streamlit hosting to resolve. For now, the local demo GIF below shows the full flow.
+**Cloud deployment (future work):** Deployment on Streamlit Community Cloud, Hugging Face Spaces (both blocked upstream: SC's Python 3.14 default breaks the tokenizers build; HF's free tier no longer includes Docker Spaces). Migration to Render.com or self-hosted VPS pending. Local run instructions below produce a fully working demo in about 10 minutes.
 
-**Demo recording:** *[link to Loom/YouTube video, added after Step 9.4]*
 
----
 
 ## Architecture
 
