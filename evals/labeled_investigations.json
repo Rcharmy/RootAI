@@ -1,0 +1,487 @@
+{
+  "eval_set_metadata": {
+    "version": "0.1-draft",
+    "dataset": "olist_ecommerce",
+    "grain": "order_item",
+    "date_range_used": "2017-01-01 to 2018-08-31 (September 2018 excluded as truncated)",
+    "case_count": 20,
+    "distribution": {
+      "single_cause": 14,
+      "multi_cause": 2,
+      "null_case": 4,
+      "by_difficulty": {"easy": 6, "medium": 8, "hard": 6}
+    },
+    "philosophy": [
+      "Ground truth reflects patterns documented in Olist's known shape, not fabricated scenarios",
+      "All time windows are like-for-like (H1 vs H1, Q2 vs Q2) to avoid window-length confounding",
+      "Null cases test calibration; agents that fabricate causes for noise are worse than agents that admit uncertainty",
+      "Every case is validatable via a SQL query the reviewer can run against DuckDB"
+    ]
+  },
+  "cases": [
+    {
+      "id": "olist_001",
+      "case_type": "single_cause",
+      "difficulty": "easy",
+      "question": "Total revenue nearly doubled from H1 2017 to H1 2018. What drove the increase?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Order volume growth (customer acquisition), driven by increased number of unique orders and unique customers. Average order value was roughly flat.",
+          "dimension": "order_count",
+          "supporting_dimensions": ["unique_customers", "aov_flat"]
+        },
+        "expected_confidence": 0.8
+      },
+      "expected_evidence_dimensions": ["order_count", "unique_customers", "aov", "items_per_order"],
+      "why_realistic": "Marketplace platforms typically grow through merchant and customer acquisition before AOV moves."
+    },
+    {
+      "id": "olist_002",
+      "case_type": "single_cause",
+      "difficulty": "easy",
+      "question": "Revenue in Q1 2018 was up substantially versus Q1 2017. Where is this growth concentrated geographically?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-03-31", "label": "Q1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-03-31", "label": "Q1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Sao Paulo state (SP) grew disproportionately. SP share of revenue increased.",
+          "dimension": "customer_state",
+          "supporting_dimensions": ["sp_share_of_revenue", "sp_absolute_growth"]
+        },
+        "expected_confidence": 0.85
+      },
+      "expected_evidence_dimensions": ["customer_state"],
+      "why_realistic": "E-commerce adoption in Brazil deepened first in metropolitan Sao Paulo."
+    },
+    {
+      "id": "olist_003",
+      "case_type": "single_cause",
+      "difficulty": "easy",
+      "question": "Q2 2018 revenue was up substantially versus Q2 2017. Which product categories drove the increase?",
+      "windows": {
+        "baseline": {"start": "2017-04-01", "end": "2017-06-30", "label": "Q2 2017"},
+        "comparison": {"start": "2018-04-01", "end": "2018-06-30", "label": "Q2 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Top three categories (bed_bath_table, health_beauty, sports_leisure) together account for the majority of absolute growth.",
+          "dimension": "product_category",
+          "supporting_dimensions": ["top_3_category_contribution", "product_category_english"]
+        },
+        "expected_confidence": 0.8
+      },
+      "expected_evidence_dimensions": ["product_category"],
+      "why_realistic": "These three categories consistently rank as Olist's top revenue drivers."
+    },
+    {
+      "id": "olist_004",
+      "case_type": "single_cause",
+      "difficulty": "medium",
+      "question": "Computers and accessories revenue grew disproportionately in H1 2018 compared to H1 2017. What explains this?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "New seller cohort entering the category. Seller count in computers_accessories grew substantially.",
+          "dimension": "seller_id",
+          "supporting_dimensions": ["seller_count", "revenue_per_seller"]
+        },
+        "expected_confidence": 0.75
+      },
+      "expected_evidence_dimensions": ["seller_id", "product_category"],
+      "why_realistic": "New verticals on marketplaces grow via seller acquisition first."
+    },
+    {
+      "id": "olist_005",
+      "case_type": "single_cause",
+      "difficulty": "medium",
+      "question": "Average order value dropped from H1 2017 to H1 2018. What's driving it?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Category mix shift toward lower-price categories. AOV within each category was stable; the average dropped because the mix rebalanced.",
+          "dimension": "product_category",
+          "supporting_dimensions": ["within_category_aov_stable", "category_mix_shift"]
+        },
+        "expected_confidence": 0.7
+      },
+      "expected_evidence_dimensions": ["product_category", "price"],
+      "why_realistic": "Classic marketplace maturity pattern."
+    },
+    {
+      "id": "olist_006",
+      "case_type": "single_cause",
+      "difficulty": "medium",
+      "question": "Average items per order in H1 2018 was lower than H1 2017. Why?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Customer cohort shift toward single-item buyers. New customer acquisition grew faster than repeat purchase behavior.",
+          "dimension": "customer_type_new_vs_repeat",
+          "supporting_dimensions": ["single_item_order_share", "new_customer_share", "customer_unique_id"]
+        },
+        "expected_confidence": 0.65
+      },
+      "expected_evidence_dimensions": ["customer_unique_id", "items_per_order"],
+      "why_realistic": "New customer acquisition typically brings in trial buyers."
+    },
+    {
+      "id": "olist_007",
+      "case_type": "single_cause",
+      "difficulty": "hard",
+      "question": "Within bed_bath_table, average price per item declined between H1 2017 and H1 2018. What happened?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "New sellers entering the category at lower price points. Existing sellers held prices roughly stable.",
+          "dimension": "seller_id",
+          "supporting_dimensions": ["existing_seller_price_stable", "new_seller_lower_price"]
+        },
+        "expected_confidence": 0.6
+      },
+      "expected_evidence_dimensions": ["seller_id", "price", "product_id"],
+      "why_realistic": "When commissions attract new sellers to a proven category, they enter with lower price points."
+    },
+    {
+      "id": "olist_008",
+      "case_type": "single_cause",
+      "difficulty": "medium",
+      "question": "Order cancellation rate increased in H1 2018 versus H1 2017. What's driving it?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Concentrated in a specific category or seller cluster, not distributed. One or two categories show cancellation rates well above the platform average.",
+          "dimension": "product_category",
+          "supporting_dimensions": ["seller_id", "category_cancel_rate", "order_status"]
+        },
+        "expected_confidence": 0.65
+      },
+      "expected_evidence_dimensions": ["order_status", "product_category", "seller_id"],
+      "why_realistic": "Cancellations trace to specific sellers or categories, never evenly distributed."
+    },
+    {
+      "id": "olist_009",
+      "case_type": "single_cause",
+      "difficulty": "easy",
+      "question": "Average delivery time in H1 2018 was longer than H1 2017. Why?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Geographic expansion. Share of orders shipping to northern and northeastern states increased.",
+          "dimension": "customer_state",
+          "supporting_dimensions": ["state_mix_shift", "within_state_delivery_stable"]
+        },
+        "expected_confidence": 0.8
+      },
+      "expected_evidence_dimensions": ["customer_state", "delivery_days"],
+      "why_realistic": "Olist's logistics network is centered on southeast Brazil; expansion mechanically increases delivery time."
+    },
+    {
+      "id": "olist_010",
+      "case_type": "single_cause",
+      "difficulty": "medium",
+      "question": "Average review score dropped between H1 2017 and H1 2018. What explains the drop?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Concentrated in a small number of categories with delivery issues. Review score drop correlates with delivery time deterioration.",
+          "dimension": "product_category",
+          "supporting_dimensions": ["delivery_days", "review_score_by_category"]
+        },
+        "expected_confidence": 0.65
+      },
+      "expected_evidence_dimensions": ["review_score", "product_category", "delivery_days"],
+      "why_realistic": "Review scores correlate strongly with delivery experience."
+    },
+    {
+      "id": "olist_011",
+      "case_type": "single_cause",
+      "difficulty": "easy",
+      "question": "Freight per order increased from H1 2017 to H1 2018. What drove the increase?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Geographic mix shift. Larger share of orders shipping to distant states with higher freight rates.",
+          "dimension": "customer_state",
+          "supporting_dimensions": ["state_mix", "within_state_freight_stable", "freight_value"]
+        },
+        "expected_confidence": 0.8
+      },
+      "expected_evidence_dimensions": ["customer_state", "freight_value"],
+      "why_realistic": "Freight scales with distance from seller."
+    },
+    {
+      "id": "olist_012",
+      "case_type": "single_cause",
+      "difficulty": "medium",
+      "question": "The share of orders paid via boleto increased in H1 2018 versus H1 2017. What explains this?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Geographic mix shift toward states with lower credit card penetration.",
+          "dimension": "customer_state",
+          "supporting_dimensions": ["payment_type", "state_boleto_share"]
+        },
+        "expected_confidence": 0.7
+      },
+      "expected_evidence_dimensions": ["payment_type", "customer_state"],
+      "why_realistic": "Credit card penetration in Brazil is higher in metro southeast."
+    },
+    {
+      "id": "olist_013",
+      "case_type": "single_cause",
+      "difficulty": "medium",
+      "question": "Top-20 seller share of revenue changed between H1 2017 and H1 2018. What drove the change?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Top-20 share declined. The long tail of sellers grew faster than the concentrated top.",
+          "dimension": "seller_id",
+          "supporting_dimensions": ["total_seller_count", "long_tail_growth"]
+        },
+        "expected_confidence": 0.75
+      },
+      "expected_evidence_dimensions": ["seller_id"],
+      "why_realistic": "Healthy marketplaces show declining top-seller concentration over time."
+    },
+    {
+      "id": "olist_014",
+      "case_type": "single_cause",
+      "difficulty": "medium",
+      "question": "The distribution of revenue across product categories shifted between H1 2017 and H1 2018. Which categories gained and lost share?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "single_cause",
+        "primary_cause": {
+          "statement": "Category mix diversified. bed_bath_table gave up several percentage points; health_beauty and computers_accessories gained.",
+          "dimension": "product_category",
+          "supporting_dimensions": ["herfindahl_index", "product_category_english"]
+        },
+        "expected_confidence": 0.75
+      },
+      "expected_evidence_dimensions": ["product_category"],
+      "why_realistic": "As marketplaces mature, the anchor category gives up share to broader assortment."
+    },
+    {
+      "id": "olist_015",
+      "case_type": "multi_cause",
+      "difficulty": "hard",
+      "question": "H1 2018 revenue was substantially higher than H1 2017. Give me a full accounting of what drove the growth.",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "multi_cause",
+        "primary_causes": [
+          {
+            "statement": "Sao Paulo state expansion in existing categories, primarily bed_bath_table and health_beauty.",
+            "dimension": "customer_state x product_category",
+            "expected_contribution_pct": 45
+          },
+          {
+            "statement": "New category emergence, particularly computers_accessories, distributed across multiple states.",
+            "dimension": "product_category x seller_id",
+            "expected_contribution_pct": 40
+          }
+        ],
+        "interaction_note": "SP was also the biggest state for the new categories, so effects compound.",
+        "expected_confidence": 0.65,
+        "eval_rules": {
+          "both_primary_causes_required": true,
+          "credit_partial_if_one_hit": 0.4
+        }
+      },
+      "expected_evidence_dimensions": ["customer_state", "product_category", "seller_id"],
+      "why_realistic": "Real revenue growth rarely has one cause."
+    },
+    {
+      "id": "olist_016",
+      "case_type": "multi_cause",
+      "difficulty": "hard",
+      "question": "Average order value shifted between H1 2017 and H1 2018, but the change is deceptive. What's really happening underneath?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "multi_cause",
+        "primary_causes": [
+          {
+            "statement": "Freight per order increased due to geographic mix shift toward distant states.",
+            "dimension": "freight_value x customer_state",
+            "expected_contribution_pct": 50,
+            "direction": "positive"
+          },
+          {
+            "statement": "Item price compression within top categories due to new seller entry at lower price points.",
+            "dimension": "price x seller_id x product_category",
+            "expected_contribution_pct": 50,
+            "direction": "negative"
+          }
+        ],
+        "interaction_note": "The two forces partially offset.",
+        "expected_confidence": 0.6,
+        "eval_rules": {
+          "both_primary_causes_required": true,
+          "credit_partial_if_one_hit": 0.35
+        }
+      },
+      "expected_evidence_dimensions": ["freight_value", "price", "product_category", "customer_state"],
+      "why_realistic": "When two forces offset, average KPIs look stable but structural change is significant."
+    },
+    {
+      "id": "olist_017",
+      "case_type": "null_case",
+      "difficulty": "hard",
+      "question": "AOV in Q2 2018 was about 2 percent lower than Q2 2017. What caused the decline?",
+      "windows": {
+        "baseline": {"start": "2017-04-01", "end": "2017-06-30", "label": "Q2 2017"},
+        "comparison": {"start": "2018-04-01", "end": "2018-06-30", "label": "Q2 2018"}
+      },
+      "ground_truth": {
+        "verdict": "no_single_cause",
+        "correct_answer": "No isolable driver. The change is broadly distributed and is within normal variation.",
+        "must_not_claim": [
+          "SP shift as primary cause",
+          "any specific category as primary cause",
+          "any single seller as primary cause"
+        ],
+        "expected_confidence": 0.2,
+        "eval_rules": {
+          "penalize_confident_attribution": true,
+          "credit_for_explicit_uncertainty": true
+        }
+      },
+      "expected_evidence_dimensions": ["product_category", "customer_state", "seller_id", "payment_type"],
+      "why_realistic": "Small KPI drifts often have no explanation."
+    },
+    {
+      "id": "olist_018",
+      "case_type": "null_case",
+      "difficulty": "hard",
+      "question": "Delivery time in Q2 2018 rose slightly (about 3 percent) versus Q2 2017. Why?",
+      "windows": {
+        "baseline": {"start": "2017-04-01", "end": "2017-06-30", "label": "Q2 2017"},
+        "comparison": {"start": "2018-04-01", "end": "2018-06-30", "label": "Q2 2018"}
+      },
+      "ground_truth": {
+        "verdict": "no_single_cause",
+        "correct_answer": "Broadly distributed. Small changes in state mix combined with small changes elsewhere. None dominant.",
+        "must_not_claim": [
+          "geographic expansion as sole cause",
+          "any specific category or seller"
+        ],
+        "expected_confidence": 0.25,
+        "eval_rules": {
+          "penalize_confident_attribution": true,
+          "credit_for_explicit_uncertainty": true
+        }
+      },
+      "expected_evidence_dimensions": ["customer_state", "seller_id", "delivery_days"],
+      "why_realistic": "Operational KPIs drift constantly for many small reasons."
+    },
+    {
+      "id": "olist_019",
+      "case_type": "null_case",
+      "difficulty": "medium",
+      "question": "Credit card share of payments changed by about 1.5 percentage points from H1 2017 to H1 2018. What drove the shift?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "no_single_cause",
+        "correct_answer": "Insignificant drift. Payment mix on samples this large is stable; 1-2pp changes are within statistical noise.",
+        "must_not_claim": [
+          "geographic shift as primary cause without magnitude qualifier",
+          "any category as primary cause"
+        ],
+        "expected_confidence": 0.3,
+        "eval_rules": {
+          "penalize_confident_attribution": true,
+          "credit_for_explicit_uncertainty": true
+        }
+      },
+      "expected_evidence_dimensions": ["payment_type", "customer_state"],
+      "why_realistic": "Payment mix on tens of thousands of orders is very stable."
+    },
+    {
+      "id": "olist_020",
+      "case_type": "null_case",
+      "difficulty": "hard",
+      "question": "Average review score dropped by about 0.05 stars from H1 2017 to H1 2018. What's driving it?",
+      "windows": {
+        "baseline": {"start": "2017-01-01", "end": "2017-06-30", "label": "H1 2017"},
+        "comparison": {"start": "2018-01-01", "end": "2018-06-30", "label": "H1 2018"}
+      },
+      "ground_truth": {
+        "verdict": "no_single_cause",
+        "correct_answer": "Broadly distributed. Consistent with normal review score drift as new customer cohorts arrive.",
+        "must_not_claim": [
+          "any single category as primary cause",
+          "any single seller as primary cause",
+          "delivery time as sole cause"
+        ],
+        "expected_confidence": 0.25,
+        "eval_rules": {
+          "penalize_confident_attribution": true,
+          "credit_for_explicit_uncertainty": true
+        }
+      },
+      "expected_evidence_dimensions": ["review_score", "product_category", "seller_id"],
+      "why_realistic": "Review scores drift as sample sizes grow and expectations evolve."
+    }
+  ]
+}
