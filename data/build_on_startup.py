@@ -108,8 +108,18 @@ def ensure_data_ready() -> None:
                 "username and key. Locally, ensure data/raw/ contains the 9 Olist CSVs."
             )
 
+# kaggle package installs a 'kaggle' CLI script into the venv's bin/
+        # directory. We call it directly rather than via 'python -m kaggle',
+        # because the kaggle package doesn't support module-style invocation.
+        kaggle_cmd = "kaggle" if sys.platform != "win32" else "kaggle.exe"
+        # On managed environments the CLI lives next to the python executable
+        venv_bin = Path(sys.executable).parent
+        kaggle_bin = venv_bin / kaggle_cmd
+        if not kaggle_bin.exists():
+            # Fallback: shell-resolvable path
+            kaggle_bin = kaggle_cmd
         subprocess.check_call([
-            sys.executable, "-m", "kaggle", "datasets", "download",
+            str(kaggle_bin), "datasets", "download",
             "-d", "olistbr/brazilian-ecommerce",
             "-p", str(raw_dir),
             "--unzip",
