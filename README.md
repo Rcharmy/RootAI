@@ -28,9 +28,17 @@ The entire investigation is a state machine with six LLM-backed nodes and four g
 
 **Screenshots:**
 
-*[Screenshot 1: Homepage with gradient hero and empty investigation form]*
-*[Screenshot 2: Live per-node progress during a run]*
-*[Screenshot 3: Executive brief with confidence-bar cause cards]*
+![RootAI homepage](docs/screenshots/01_home.png)
+
+*Homepage with the investigation form, sidebar showing 7 stored prior investigations, and cost tracking.*
+
+![Live per-node progress](docs/screenshots/02_progress.png)
+
+*The agent streams per-node progress with cumulative token counts as each investigation step completes. Icons denote which of the six graph nodes is executing.*
+
+![Executive brief](docs/screenshots/03_results.png)
+
+*Ranked causes with color-coded confidence bars, executive summary, and retrieved prior investigations from ChromaDB. Investigation ran in 10 steps at $0.0054 total cost.*
 
 **Cloud deployment:** In progress. Streamlit Community Cloud's Python 3.14 default creates a PyO3/tokenizers build failure that is upstream from this project. Will migrate to Hugging Face Spaces or Snowflake's Streamlit hosting to resolve. For now, the local demo GIF below shows the full flow.
 
