@@ -23,9 +23,11 @@ The entire investigation is a state machine with six LLM-backed nodes and four g
 ---
 
 ## Live demo
+**Try it now:** [https://rootai-vkqy.onrender.com](https://rootai-vkqy.onrender.com)
 
-**Local:** `streamlit run streamlit_app.py` (setup instructions below)
-**Demo:** See screenshots below. To try it yourself, [clone the repo and run locally](#run-locally); the full setup takes about 10 minutes.
+Deployed on Render.com free tier. First visitor after inactivity waits ~30 seconds for the container to wake (Render's free tier sleeps after 15 minutes of no traffic). Local setup instructions in [Run locally](#run-locally) below.
+
+
 **Screenshots:**
 
 ![RootAI homepage](docs/screenshots/01_home.png)
@@ -40,7 +42,7 @@ The entire investigation is a state machine with six LLM-backed nodes and four g
 
 *Ranked causes with color-coded confidence bars, executive summary, and retrieved prior investigations from ChromaDB. Investigation ran in 10 steps at $0.0054 total cost.*
 
-**Cloud deployment (future work):** Deployment on Streamlit Community Cloud, Hugging Face Spaces (both blocked upstream: SC's Python 3.14 default breaks the tokenizers build; HF's free tier no longer includes Docker Spaces). Migration to Render.com or self-hosted VPS pending. Local run instructions below produce a fully working demo in about 10 minutes.
+**Deployment notes:** Streamlit Community Cloud (defaulted to Python 3.14, broke chromadb -> tokenizers -> PyO3 chain), Hugging Face Spaces (Docker Spaces moved to paid tier). Render.com Free tier works because it honors PYTHON_VERSION env var pinning.
 
 
 
